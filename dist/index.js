@@ -33044,6 +33044,7 @@ function runAction(options) {
                 }));
             }
             else {
+                const command = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} --json=${index_1.SCA_OUTPUT_FILE}`;
                 core.info('Command to run: ' + command);
                 const execution = (0, child_process_1.spawn)('sh', ['-c', command], {
                     stdio: "pipe",
@@ -33137,27 +33138,27 @@ function runAction(options) {
                     core.info('Finish command');
                 }));
             }
-            core.info("Starting json scan");
-            const commandJson = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} --json=${index_1.SCA_OUTPUT_FILE}`;
-            const execution = (0, child_process_1.spawn)('sh', ['-c', commandJson], {
-                stdio: "pipe",
-                shell: false
-            });
-            execution.on('error', (data) => {
-                core.error(data);
-            });
-            let output = '';
-            execution.stdout.on('data', (data) => {
-                output = `${output}${data}`;
-            });
-            execution.stderr.on('data', (data) => {
-                core.error(`stderr: ${data}`);
-            });
-            execution.on('close', (code) => __awaiter(this, void 0, void 0, function* () {
-                //core.info(output);
-                core.info(`Scan finished with exit code:  ${code}`);
-                core.info(output);
-            }));
+            // core.info("Starting json scan")
+            // const commandJson = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} --json=${SCA_OUTPUT_FILE}`;
+            // const execution = spawn('sh',['-c',commandJson],{
+            //     stdio:"pipe",
+            //     shell:false
+            //   });
+            //   execution.on('error', (data) => {
+            //     core.error(data);
+            // })
+            // let output: string = '';
+            // execution.stdout!.on('data', (data) => {
+            //     output = `${output}${data}`;
+            // });
+            // execution.stderr!.on('data', (data) => {
+            //     core.error(`stderr: ${data}`);
+            // });
+            // execution.on('close', async (code) => {
+            //     //core.info(output);
+            //     core.info(`Scan finished with exit code:  ${code}`);
+            //     core.info(output)
+            // })
         }
         catch (error) {
             if (error instanceof Error) {
