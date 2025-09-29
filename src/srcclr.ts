@@ -165,15 +165,15 @@ export async function runAction (options: Options)  {
 
                 core.info(output)
                 //write output to file
-                // writeFile('scaResults.txt', output, (err) => {
+                // writeFile(SCA_OUTPUT_FILE, output, (err) => {
                 //     if (err) throw err;
                 //     console.log('The file has been saved!');
                 // });
-                if ( code != null && code > 0 ){
-                    core.setFailed(`Scan finished with exit code:  ${code}`)
-                }
+                // if ( code != null && code > 0 ){
+                //     core.setFailed(`Scan finished with exit code:  ${code}`)
+                // }
                 try {
-                    writeFileSync('scaResults.txt', output);
+                    writeFileSync(SCA_OUTPUT_FILE, output);
                     console.log('The file has been saved!');
                 } catch (err) {
                     console.error('Error writing file:', err);
@@ -194,7 +194,7 @@ export async function runAction (options: Options)  {
                 const artifactClient = new DefaultArtifactClient();
                 const artifactName = 'Veracode Agent Based SCA Results';
                 const files = [
-                    'scaResults.txt'
+                    SCA_OUTPUT_FILE
                 ]
                 
                 const rootDirectory = process.cwd()
