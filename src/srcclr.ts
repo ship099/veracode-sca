@@ -158,35 +158,21 @@ export async function runAction (options: Options)  {
             execution.stderr!.on('data', (data) => {
                 core.error(`stderr: ${data}`);
             });
-    
+
             execution.on('close', async (code) => {
                 //core.info(output);
                 core.info(`Scan finished with exit code:  ${code}`);
 
-                core.info(output)
-                //write output to file
-                // writeFile(SCA_OUTPUT_FILE, output, (err) => {
-                //     if (err) throw err;
-                //     console.log('The file has been saved!');
-                // });
-                // if ( code != null && code > 0 ){
-                //     core.setFailed(`Scan finished with exit code:  ${code}`)
-                // }
+               // core.info(output)
+
                 try {
-                    writeFileSync(SCA_OUTPUT_FILE, output);
+                   // writeFileSync('scaResults.txt', output);
+                   writeFileSync(SCA_OUTPUT_FILE, output);
                     console.log('The file has been saved!');
                 } catch (err) {
                     console.error('Error writing file:', err);
                 }
 
-                
-                // core.info('reading file')
-                // try {
-                //     const data = readFileSync('scaResults.txt', 'utf8');
-                //     console.log('Full file output: '+data);
-                // } catch (err) {
-                //     console.error(err);
-                // }
 
                 //store output files as artifacts
                 core.info('Store txt Results as Artifact')
