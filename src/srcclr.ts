@@ -181,7 +181,7 @@ export async function runAction (options: Options)  {
                 const artifact = require('@actions/artifact');
 const artifactClient = artifact.create();
 
-                const artifactName = 'Veracode Agent Based SCA Results';
+                const artifactName = 'Veracode-Agent-Based-SCA-Results';
                 const files = [
                     SCA_OUTPUT_FILE
                 ]

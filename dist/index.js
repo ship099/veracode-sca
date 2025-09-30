@@ -33079,7 +33079,7 @@ function runAction(options) {
                     // const artifactClient = new DefaultArtifactClient();
                     const artifact = __nccwpck_require__(2605);
                     const artifactClient = artifact.create();
-                    const artifactName = 'Veracode Agent Based SCA Results';
+                    const artifactName = 'Veracode-Agent-Based-SCA-Results';
                     const files = [
                         index_1.SCA_OUTPUT_FILE
                     ];
