@@ -33067,7 +33067,7 @@ function runAction(options) {
                     // core.info(output)
                     try {
                         // writeFileSync('scaResults.txt', output);
-                        (0, fs_1.writeFileSync)(index_1.SCA_OUTPUT_FILE, output);
+                        (0, fs_1.writeFileSync)('scaResults.json', output);
                         console.log('The file has been saved!');
                     }
                     catch (err) {
@@ -33075,13 +33075,13 @@ function runAction(options) {
                     }
                     //store output files as artifacts
                     core.info('Store txt Results as Artifact');
-                    // const { DefaultArtifactClient } = require('@actions/artifact');
-                    // const artifactClient = new DefaultArtifactClient();
-                    const artifact = __nccwpck_require__(2605);
-                    const artifactClient = artifact.create();
+                    const { DefaultArtifactClient } = __nccwpck_require__(2605);
+                    const artifactClient = new DefaultArtifactClient();
+                    //                 const artifact = require('@actions/artifact');
+                    // const artifactClient = artifact.create();
                     const artifactName = 'Veracode-Agent-Based-SCA-Results';
                     const files = [
-                        index_1.SCA_OUTPUT_FILE
+                        'scaResults.json'
                     ];
                     const rootDirectory = process.cwd();
                     const artefactOptions = {
