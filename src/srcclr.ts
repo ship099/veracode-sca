@@ -139,7 +139,6 @@ export async function runAction (options: Options)  {
 
         
         } else {
-            const command = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} --json=${SCA_OUTPUT_FILE}`;
             core.info('Command to run: '+command)
             const execution = spawn('sh',['-c',command],{
                 stdio:"pipe",
@@ -158,32 +157,41 @@ export async function runAction (options: Options)  {
             execution.stderr!.on('data', (data) => {
                 core.error(`stderr: ${data}`);
             });
-
+    
             execution.on('close', async (code) => {
                 //core.info(output);
                 core.info(`Scan finished with exit code:  ${code}`);
 
-               // core.info(output)
+                core.info(output)
+                //write output to file
+                // writeFile('scaResults.txt', output, (err) => {
+                //     if (err) throw err;
+                //     console.log('The file has been saved!');
+                // });
 
                 try {
-                   // writeFileSync('scaResults.txt', output);
-                   writeFileSync('scaResults.json', output);
+                    writeFileSync('scaResults.txt', output);
                     console.log('The file has been saved!');
                 } catch (err) {
                     console.error('Error writing file:', err);
                 }
 
+                
+                // core.info('reading file')
+                // try {
+                //     const data = readFileSync('scaResults.txt', 'utf8');
+                //     console.log('Full file output: '+data);
+                // } catch (err) {
+                //     console.error(err);
+                // }
 
                 //store output files as artifacts
                 core.info('Store txt Results as Artifact')
                 const { DefaultArtifactClient } = require('@actions/artifact');
                 const artifactClient = new DefaultArtifactClient();
-//                 const artifact = require('@actions/artifact');
-// const artifactClient = artifact.create();
-
-                const artifactName = 'Veracode-Agent-Based-SCA-Results';
+                const artifactName = 'Veracode Agent Based SCA Results';
                 const files = [
-                    'scaResults.json'
+                    'scaResults.txt'
                 ]
                 
                 const rootDirectory = process.cwd()
@@ -249,31 +257,6 @@ export async function runAction (options: Options)  {
                 core.info('Finish command');
             });
         }
-        // core.info("Starting json scan")
-        // const commandJson = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} --json=${SCA_OUTPUT_FILE}`;
-        // const execution = spawn('sh',['-c',commandJson],{
-        //     stdio:"pipe",
-        //     shell:false
-        //   });
-        //   execution.on('error', (data) => {
-        //     core.error(data);
-        // })
-                
-        // let output: string = '';
-        // execution.stdout!.on('data', (data) => {
-        //     output = `${output}${data}`;
-        // });
-            
-        // execution.stderr!.on('data', (data) => {
-        //     core.error(`stderr: ${data}`);
-        // });
-
-        // execution.on('close', async (code) => {
-        //     //core.info(output);
-        //     core.info(`Scan finished with exit code:  ${code}`);
-
-        //     core.info(output)
-        // })
         
     } catch (error) {
         if (error instanceof Error) {
@@ -314,4 +297,3 @@ const collectors = [
 "dll",
 "msbuilddotnet",
 ]
-
