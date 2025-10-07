@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execSync, spawn } from "child_process";
+import { execSync, spawn , spawnSync} from "child_process";
 
 import * as core from '@actions/core'
 import { Options } from "./options";
@@ -45,7 +45,7 @@ export async function runAction (options: Options)  {
         extraCommands = `${extraCommands}${options.recursive?'--recursive ':''}${options.quick? '--quick ':''}${options.allowDirty? '--allow-dirty ':''}${options.updateAdvisor? '--update-advisor ':''}${skipVMS? '--skip-vms ':''}${noGraphs? '--no-graphs ':''}${options.debug? '--debug ':''}${skipCollectorsAttr}`;
         const command = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} ${commandOutput}`;
         core.info(command);
-
+        const jsonCommand = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} --json=${SCA_OUTPUT_FILE}`;
 
         if (options.createIssues) {
             core.info('Starting the scan')
@@ -150,6 +150,7 @@ export async function runAction (options: Options)  {
             })
                     
             let output: string = '';
+            let jsonOutput: string = '';
             execution.stdout!.on('data', (data) => {
                 output = `${output}${data}`;
             });
@@ -163,11 +164,7 @@ export async function runAction (options: Options)  {
                 core.info(`Scan finished with exit code:  ${code}`);
 
                 core.info(output)
-                //write output to file
-                // writeFile('scaResults.txt', output, (err) => {
-                //     if (err) throw err;
-                //     console.log('The file has been saved!');
-                // });
+             
 
                 try {
                     writeFileSync('scaResults.txt', output);
@@ -176,14 +173,6 @@ export async function runAction (options: Options)  {
                     console.error('Error writing file:', err);
                 }
 
-                
-                // core.info('reading file')
-                // try {
-                //     const data = readFileSync('scaResults.txt', 'utf8');
-                //     console.log('Full file output: '+data);
-                // } catch (err) {
-                //     console.error(err);
-                // }
 
                 //store output files as artifacts
                 core.info('Store txt Results as Artifact')
@@ -245,8 +234,17 @@ export async function runAction (options: Options)  {
 
                 }
 
+                //Json output nad usgae
 
-
+                const jsonResult = spawnSync(jsonCommand);
+                jsonOutput = jsonResult.stdout.toString().trim();
+                const data = JSON.parse(jsonOutput);
+                const scanRecord = data.records.find((record: any) => record.metadata.recordType === "SCAN");
+                if ((scanRecord.vulnerabilities.length === 0 && scanRecord.libraries.length === 0 && scanRecord.unmatchedLibraries.length === 0 && scanRecord.vulnMethods.length === 0)) {
+                    const message = `No vulnerabilities found in SCA Scan.`;
+                }else{
+                    core.setFailed(`Veraocde SCA Scan failed with Vuneribilities`)
+                }
 
                 // if scan was set to fail the pipeline should fail and show a summary of the scan results
                 if ( code != null && code > 0 ){
