@@ -236,8 +236,8 @@ export async function runAction (options: Options)  {
 
                 //Json output nad usgae
 
-                const jsonResult = spawnSync(jsonCommand);
-                jsonOutput = jsonResult.stdout.toString().trim();
+                const jsonResult = execSync(jsonCommand);
+                jsonOutput = jsonResult.toString().trim();
                 const data = JSON.parse(jsonOutput);
                 const scanRecord = data.records.find((record: any) => record.metadata.recordType === "SCAN");
                 if ((scanRecord.vulnerabilities.length === 0 && scanRecord.libraries.length === 0 && scanRecord.unmatchedLibraries.length === 0 && scanRecord.vulnMethods.length === 0)) {
