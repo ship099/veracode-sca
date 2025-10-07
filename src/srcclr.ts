@@ -241,7 +241,7 @@ export async function runAction (options: Options)  {
                 const data = JSON.parse(jsonOutput);
                 
                 const scanRecord = data.records.find((record: any) => record.metadata.recordType === "SCAN");
-                core.info(data)
+                core.info(JSON.stringify(data,null,2));
                 if ((scanRecord.vulnerabilities.length === 0 && scanRecord.libraries.length === 0 && scanRecord.unmatchedLibraries.length === 0 && scanRecord.vulnMethods.length === 0)) {
                     const message = `No vulnerabilities found in SCA Scan.`;
                 }else{
