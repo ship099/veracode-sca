@@ -163,7 +163,7 @@ export async function runAction (options: Options)  {
                 //core.info(output);
                 core.info(`Scan finished with exit code:  ${code}`);
 
-                core.info(output)
+                //core.info(output)
              
 
                 try {
@@ -239,7 +239,9 @@ export async function runAction (options: Options)  {
                 const jsonResult = execSync(jsonCommand);
                 jsonOutput = jsonResult.toString().trim();
                 const data = JSON.parse(jsonOutput);
+                
                 const scanRecord = data.records.find((record: any) => record.metadata.recordType === "SCAN");
+                core.info(scanRecord)
                 if ((scanRecord.vulnerabilities.length === 0 && scanRecord.libraries.length === 0 && scanRecord.unmatchedLibraries.length === 0 && scanRecord.vulnMethods.length === 0)) {
                     const message = `No vulnerabilities found in SCA Scan.`;
                 }else{
