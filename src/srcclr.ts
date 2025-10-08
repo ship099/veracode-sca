@@ -163,7 +163,7 @@ export async function runAction (options: Options)  {
                 //core.info(output);
                 core.info(`Scan finished with exit code:  ${code}`);
 
-                //core.info(output)
+                core.info(output)
              
 
                 try {
@@ -234,19 +234,19 @@ export async function runAction (options: Options)  {
 
                 }
 
-                //Json output nad usgae
+                // //Json output nad usgae
 
-                const jsonResult = execSync(jsonCommand);
-                jsonOutput = jsonResult.toString().trim();
-                const data = JSON.parse(jsonOutput);
+                // const jsonResult = execSync(jsonCommand);
+                // jsonOutput = jsonResult.toString().trim();
+                // const data = JSON.parse(jsonOutput);
                 
-                const scanRecord = data.records.find((record: any) => record.metadata.recordType === "SCAN");
-                core.info(JSON.stringify(data,null,2));
-                if ((scanRecord.vulnerabilities.length === 0 && scanRecord.libraries.length === 0 && scanRecord.unmatchedLibraries.length === 0 && scanRecord.vulnMethods.length === 0)) {
-                    const message = `No vulnerabilities found in SCA Scan.`;
-                }else{
-                    core.setFailed(`Veraocde SCA Scan failed with Vuneribilities`)
-                }
+                // const scanRecord = data.records.find((record: any) => record.metadata.recordType === "SCAN");
+                // core.info(JSON.stringify(data,null,2));
+                // if ((scanRecord.vulnerabilities.length === 0 && scanRecord.libraries.length === 0 && scanRecord.unmatchedLibraries.length === 0 && scanRecord.vulnMethods.length === 0)) {
+                //     const message = `No vulnerabilities found in SCA Scan.`;
+                // }else{
+                //     core.setFailed(`Veraocde SCA Scan failed with Vuneribilities`)
+                // }
 
                 // if scan was set to fail the pipeline should fail and show a summary of the scan results
                 if ( code != null && code > 0 ){
