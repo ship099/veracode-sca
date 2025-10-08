@@ -190,11 +190,6 @@ export async function runAction (options: Options)  {
                 
                 const uploadResult = await artifactClient.uploadArtifact(artifactName, files, rootDirectory, artefactOptions)
             
-
-
-
-
-
                 //Pull request decoration
                 core.info('check if we run on a pull request')
                 let pullRequest = process.env.GITHUB_REF
