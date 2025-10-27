@@ -53,6 +53,10 @@ inputs:
     description: "Run the SRCCLR with the `--no-graphs` option"
     required: false
     default: "false"
+  breakBuildOnPolicyFindings:
+    description: "Break the build based on the Policy Findings"
+    required: false
+    default: "false"
 runs:
   using: 'node20'
   main: 'dist/index.js'
