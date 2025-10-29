@@ -47,8 +47,9 @@ export async function runAction (options: Options)  {
         core.info(command);
         const jsonCommand = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} --json=${SCA_OUTPUT_FILE}`;
 
-        const windowsCommand = `powershell.exe (Invoke-RestMethod -Uri 'https://example.com/ci.ps1') -s -- scan ${extraCommands} ${commandOutput}`
-        const output = execSync(windowsCommand, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 });//10MB
+        const windowsCommand = `powershell.exe ((New-Object System.Net.WebClient).DownloadString('https://sca-downloads.veracode.com/ci.ps1')) -s -- scan ${extraCommands} ${commandOutput}`
+       const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ab.ps1; & $env:TEMP\\ab.ps1 -s -- scan ${extraCommands} ${commandOutput}"`
+        const output = execSync(powershellCommand, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 });//10MB
         console.log(output);
         // if (options.createIssues) {
         //     core.info('Starting the scan')
