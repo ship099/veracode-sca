@@ -32435,7 +32435,7 @@ function runAction(options) {
             const command = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} ${commandOutput}`;
             core.info(command);
             const jsonCommand = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} --json=${index_1.SCA_OUTPUT_FILE}`;
-            const windowsCommand = `iex (Invoke-RestMethod -Uri 'https://example.com/ci.ps1') -s -- scan ${extraCommands} ${commandOutput}`;
+            const windowsCommand = `powershell.exe (Invoke-RestMethod -Uri 'https://example.com/ci.ps1') -s -- scan ${extraCommands} ${commandOutput}`;
             const output = (0, child_process_1.execSync)(windowsCommand, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 }); //10MB
             console.log(output);
             // if (options.createIssues) {

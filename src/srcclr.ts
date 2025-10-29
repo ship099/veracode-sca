@@ -47,7 +47,7 @@ export async function runAction (options: Options)  {
         core.info(command);
         const jsonCommand = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} --json=${SCA_OUTPUT_FILE}`;
 
-        const windowsCommand = `iex (Invoke-RestMethod -Uri 'https://example.com/ci.ps1') -s -- scan ${extraCommands} ${commandOutput}`
+        const windowsCommand = `powershell.exe (Invoke-RestMethod -Uri 'https://example.com/ci.ps1') -s -- scan ${extraCommands} ${commandOutput}`
         const output = execSync(windowsCommand, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 });//10MB
         console.log(output);
         // if (options.createIssues) {
