@@ -10,7 +10,7 @@ import { writeFile } from 'fs';
 import { readFileSync } from 'fs';
 import { writeFileSync } from 'fs';
 
-
+const runnerOS = process.env.RUNNER_OS;
 const cleanCollectors = (inputArr:Array<string>) => {
     let allowed:Array<string> = [];
     for (var input of inputArr) {
@@ -31,7 +31,9 @@ export async function runAction (options: Options)  {
         } else {
             extraCommands = `${options.path} `;
         }
-
+        if(runnerOS == 'Windows'){
+            core.info(`Running on ${runnerOS} runner`)
+        }
         const skip = cleanCollectors(options["skip-collectors"]);
         let skipCollectorsAttr = '';
         if (skip.length>0) {
@@ -49,6 +51,7 @@ export async function runAction (options: Options)  {
 
         const windowsCommand = `powershell.exe ((New-Object System.Net.WebClient).DownloadString('https://sca-downloads.veracode.com/ci.ps1')) -s -- scan ${extraCommands} ${commandOutput}`
        const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ab.ps1; & $env:TEMP\\ab.ps1 -s -- scan ${extraCommands} ${commandOutput}"`
+
         const output = execSync(powershellCommand, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 });//10MB
         console.log(output);
         // if (options.createIssues) {
