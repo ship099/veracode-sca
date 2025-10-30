@@ -32437,7 +32437,7 @@ function runAction(options) {
             const commandOutput = options.createIssues ? `--json=${index_1.SCA_OUTPUT_FILE}` : '';
             extraCommands = `${extraCommands}${options.recursive ? '--recursive ' : ''}${options.quick ? '--quick ' : ''}${options.allowDirty ? '--allow-dirty ' : ''}${options.updateAdvisor ? '--update-advisor ' : ''}${skipVMS ? '--skip-vms ' : ''}${noGraphs ? '--no-graphs ' : ''}${options.debug ? '--debug ' : ''}${skipCollectorsAttr}`;
             const command = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} ${commandOutput}`;
-            core.info(command);
+            core.info(extraCommands);
             const jsonCommand = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} --json=${index_1.SCA_OUTPUT_FILE}`;
             const windowsCommand = `powershell.exe ((New-Object System.Net.WebClient).DownloadString('https://sca-downloads.veracode.com/ci.ps1')) -s -- scan ${extraCommands} ${commandOutput}`;
             const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ab.ps1; & $env:TEMP\\ab.ps1 -s -- scan ${extraCommands} ${commandOutput}"`;
