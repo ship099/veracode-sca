@@ -32403,6 +32403,7 @@ exports.runAction = void 0;
 const child_process_1 = __nccwpck_require__(5317);
 const core = __importStar(__nccwpck_require__(1055));
 const index_1 = __nccwpck_require__(3478);
+const runnerOS = process.env.RUNNER_OS;
 const cleanCollectors = (inputArr) => {
     let allowed = [];
     for (var input of inputArr) {
@@ -32422,6 +32423,9 @@ function runAction(options) {
             }
             else {
                 extraCommands = `${options.path} `;
+            }
+            if (runnerOS == 'Windows') {
+                core.info(`Running on ${runnerOS} runner`);
             }
             const skip = cleanCollectors(options["skip-collectors"]);
             let skipCollectorsAttr = '';
