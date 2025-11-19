@@ -47,7 +47,7 @@ export async function runAction (options: Options)  {
         if (runnerOS == 'Windows') {
             const appdata = process.env.APPDATA ?? "";
             const scriptPath = process.env.GITHUB_WORKSPACE + "/ci.ps1";
-            let pwdCommand2 = `dir ${process.env.TEMP}`
+            let pwdCommand2 = `dir ${process.env.GITHUB_WORKSPACE}`
                     try {
                         console.log("before executing pwd2")
                         execSync(`powershell ${pwdCommand2}`, { stdio: 'inherit' })
