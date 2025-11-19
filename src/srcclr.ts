@@ -172,7 +172,7 @@ export async function runAction (options: Options)  {
                 execution.on('close', async (code) => {
                     const cliPathVera = path.join(appdata, 'veracode')
                     let pwdCommand1 = `Write-Host "TEMP: $env:TEMP"`
-                    let pwdCommand2 = `dir ${appdata}`
+                    let pwdCommand2 = `dir ${process.env.TEMP}`
                     try {
                         console.log("before executing pwd2")
                         execSync(`powershell ${pwdCommand2}`, { stdio: 'inherit' })
