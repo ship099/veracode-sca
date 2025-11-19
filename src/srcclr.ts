@@ -30,7 +30,7 @@ export async function runAction (options: Options)  {
         if (options.url.length>0) {
             extraCommands = `--url ${options.url} `;
         } else {
-            extraCommands = `${process.env.GITHUB_WORKSPACE} `;
+            extraCommands = `${options.path} `;
         }
 
         const skip = cleanCollectors(options["skip-collectors"]);
@@ -45,22 +45,23 @@ export async function runAction (options: Options)  {
         const commandOutput = options.createIssues ? `--json=${SCA_OUTPUT_FILE}` : '';
         extraCommands = `${extraCommands}${options.recursive ? '--recursive ' : ''}${options.quick ? '--quick ' : ''}${options.allowDirty ? '--allow-dirty ' : ''}${options.updateAdvisor ? '--update-advisor ' : ''}${skipVMS ? '--skip-vms ' : ''}${noGraphs ? '--no-graphs ' : ''}${options.debug ? '--debug ' : ''}${skipCollectorsAttr}`;
         if (runnerOS == 'Windows') {
-            const appdata = process.env.APPDATA ?? "";
-            const scriptPath = process.env.GITHUB_WORKSPACE + "/ci.ps1";
+            const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ab.ps1; & $env:TEMP\\ab.ps1 -s -- scan ${extraCommands} ${commandOutput}"`
+            
+    
             let pwdCommand2 = `dir ${process.env.GITHUB_WORKSPACE}`
-                    try {
-                        console.log("before executing pwd2")
-                        execSync(`powershell ${pwdCommand2}`, { stdio: 'inherit' })
-                        // execSync(lsCommand, { stdio: 'inherit' })
-                        console.log("after executing pwd2")
+            try {
+                console.log("before executing pwd2")
+                execSync(`powershell ${pwdCommand2}`, { stdio: 'inherit' })
+                // execSync(lsCommand, { stdio: 'inherit' })
+                console.log("after executing pwd2")
 
-                    }
-                    catch (e) {
-                        console.log(e)
-                    }
-            const powershellCommand = `"Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile "${scriptPath}"; & "${scriptPath}" -s -- scan ${extraCommands} ${commandOutput}"`
+            }
+            catch (e) {
+                console.log(e)
+            }
+            // const powershellCommand = `"Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile "${scriptPath}"; & "${scriptPath}" -s -- scan ${extraCommands} ${commandOutput}"`
             const psCommand = `Set-ExecutionPolicy AllSigned -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://sca-downloads.veracode.com/ci.ps1'))`
-           
+
             if (options.createIssues) {
                 core.info('Starting the scan')
 
@@ -159,51 +160,17 @@ export async function runAction (options: Options)  {
 
             } else {
                 core.info('Command to run: ' + powershellCommand)
-
-                const execString = `powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "${powershellCommand}"`
-                const args: string[] = [
-                    '-NoProfile', // Prevents loading the user profile, for predictability
-                    '-Command',
-                    powershellCommand
-                ];
-                const execution = spawn(execString, {
-                    stdio: 'inherit',   // ← raw passthrough
-                    shell: true
-
-                });
-
-                execution.on('error', (data) => {
-                    core.error(data);
-                })
-
-                let output: string = '';
-                execution.on('data', (data) => {
-                    output = `${output}${data.toString()}`;
-                });
-
-                execution.on('close', async (code) => {
-                    const cliPathVera = path.join(appdata, 'veracode')
-                    let pwdCommand1 = `Write-Host "TEMP: $env:TEMP"`
-                    let pwdCommand2 = `dir ${process.env.TEMP}`
-                    try {
-                        console.log("before executing pwd2")
-                        execSync(`powershell ${pwdCommand2}`, { stdio: 'inherit' })
-                        // execSync(lsCommand, { stdio: 'inherit' })
-                        console.log("after executing pwd2")
-                        execSync(`powershell ${pwdCommand1}`, { stdio: 'inherit' })
-
+                let output:string = ''
+                try {
+                    output = execSync(powershellCommand, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 });//10MB
+                    core.info(output);
+                }
+                catch (error:any) {
+                    if (error.statuscode != null && error.statuscode > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
+                        let summary_info = "Veraocde SCA Scan failed with exit code " + error.statuscode + "\n"
+                        core.setFailed(summary_info)
                     }
-                    catch (e) {
-                        console.log(e)
-                    }
-                    core.info(`Scan finished with exit code:  ${code}`);
-
-                    core.info(`output ${output}`)
-                    //write output to file
-                    // writeFile('scaResults.txt', output, (err) => {
-                    //     if (err) throw err;
-                    //     console.log('The file has been saved!');
-                    // });
+                }
 
                     try {
                         writeFileSync('scaResults.txt', output);
@@ -266,7 +233,7 @@ export async function runAction (options: Options)  {
 
 
                         let commentBody = '<br>![](https://www.veracode.com/sites/default/files/2022-04/logo_1.svg)<br>'
-                        commentBody += "<pre>Veraocde SCA Scan finished with exit code " + code + "\n"
+                        commentBody += "<pre>Veraocde SCA Scan finished with exit code " + 0 + "\n"
                         commentBody += '\n<details><summary>Veracode SCA Scan details</summary><p>\n'
                         commentBody += output //.replace(/    /g, '&nbsp;&nbsp;&nbsp;&nbsp;');
                         commentBody += '</p></details>\n</pre>'
@@ -294,15 +261,10 @@ export async function runAction (options: Options)  {
 
 
                     // if scan was set to fail the pipeline should fail and show a summary of the scan results
-                    if (code != null && code > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
-                        let summary_info = "Veraocde SCA Scan failed with exit code " + code + "\n"
-                        core.setFailed(summary_info)
-                    }
+                  
                     //run(options,core.info);
                     core.info('Finish command');
                 }
-            );
-            }
         }
         else {
             const command = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} ${commandOutput}`;
