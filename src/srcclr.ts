@@ -46,7 +46,19 @@ export async function runAction (options: Options)  {
         extraCommands = `${extraCommands}${options.recursive ? '--recursive ' : ''}${options.quick ? '--quick ' : ''}${options.allowDirty ? '--allow-dirty ' : ''}${options.updateAdvisor ? '--update-advisor ' : ''}${skipVMS ? '--skip-vms ' : ''}${noGraphs ? '--no-graphs ' : ''}${options.debug ? '--debug ' : ''}${skipCollectorsAttr}`;
         if (runnerOS == 'Windows') {
             const appdata = process.env.APPDATA ?? "";
-            const powershellCommand = `"Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile "$env:TEMP\\ci.ps1"; & "$env:TEMP\\ci.ps1" -s -- scan ${extraCommands} ${commandOutput}"`
+            const scriptPath = process.env.GITHUB_WORKSPACE + "/ci.ps1";
+            let pwdCommand2 = `dir ${process.env.TEMP}`
+                    try {
+                        console.log("before executing pwd2")
+                        execSync(`powershell ${pwdCommand2}`, { stdio: 'inherit' })
+                        // execSync(lsCommand, { stdio: 'inherit' })
+                        console.log("after executing pwd2")
+
+                    }
+                    catch (e) {
+                        console.log(e)
+                    }
+            const powershellCommand = `"Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile "${scriptPath}"; & "${scriptPath}" -s -- scan ${extraCommands} ${commandOutput}"`
             const psCommand = `Set-ExecutionPolicy AllSigned -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://sca-downloads.veracode.com/ci.ps1'))`
            
             if (options.createIssues) {
