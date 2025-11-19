@@ -30,7 +30,7 @@ export async function runAction (options: Options)  {
         if (options.url.length>0) {
             extraCommands = `--url ${options.url} `;
         } else {
-            extraCommands = `${options.path} `;
+            extraCommands = `${process.env.GITHUB_WORKSPACE} `;
         }
 
         const skip = cleanCollectors(options["skip-collectors"]);
