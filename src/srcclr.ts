@@ -48,6 +48,7 @@ export async function runAction (options: Options)  {
             const appdata = process.env.APPDATA ?? "";
             const powershellCommand = `"Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile "$env:TEMP\\ci.ps1"; & "$env:TEMP\\ci.ps1" -s -- scan ${extraCommands} ${commandOutput}"`
             const psCommand = `Set-ExecutionPolicy AllSigned -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://sca-downloads.veracode.com/ci.ps1'))`
+           
             if (options.createIssues) {
                 core.info('Starting the scan')
 
@@ -170,7 +171,7 @@ export async function runAction (options: Options)  {
 
                 execution.on('close', async (code) => {
                     const cliPathVera = path.join(appdata, 'veracode')
-                    let pwdCommand1 = `dir ${cliPathVera}`
+                    let pwdCommand1 = `Write-Host "TEMP: $env:TEMP"`
                     let pwdCommand2 = `dir ${appdata}`
                     try {
                         console.log("before executing pwd2")
