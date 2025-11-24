@@ -48,7 +48,7 @@ export async function runAction (options: Options)  {
             const powershellCommand1 = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ab.ps1; & $env:TEMP\\ab.ps1 -s -- scan ${extraCommands} ${commandOutput}"`
             
             const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $script = Join-Path $env:TEMP 'ci.ps1'; Invoke-WebRequest -Uri 'https://sca-downloads.veracode.com/ci.ps1' -OutFile $script; & $script -s -- scan ${extraCommands} ${commandOutput}; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"`
-            let pwdCommand2 = `dir ${process.env.GITHUB_WORKSPACE}`
+            let pwdCommand2 = `dir ${process.env.TEMP}`
             try {
                 console.log("before executing pwd2")
                 execSync(`powershell ${pwdCommand2}`, { stdio: 'inherit' })
