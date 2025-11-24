@@ -163,7 +163,17 @@ export async function runAction (options: Options)  {
                 let output:string = ''
                 try {
                     output = execSync(powershellCommand, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 });//10MB
-                    core.info(output);
+                    core.info(`outpuy: ${output}`);
+                    try {
+                        console.log("before executing pwd2")
+                        execSync(`powershell ${pwdCommand2}`, { stdio: 'inherit' })
+                        // execSync(lsCommand, { stdio: 'inherit' })
+                        console.log("after executing pwd2")
+        
+                    }
+                    catch (e) {
+                        console.log(e)
+                    }
                 }
                 catch (error:any) {
                     if (error.statuscode != null && error.statuscode > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
