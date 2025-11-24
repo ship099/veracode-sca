@@ -191,12 +191,12 @@ export async function runAction (options: Options)  {
 
 
                     // core.info('reading file')
-                    // try {
-                    //     const data = readFileSync('scaResults.txt', 'utf8');
-                    //     console.log('Full file output: '+data);
-                    // } catch (err) {
-                    //     console.error(err);
-                    // }
+                    try {
+                        const data = readFileSync('scaResults.txt', 'utf8');
+                        console.log('Full file output: '+data);
+                    } catch (err) {
+                        console.error(err);
+                    }
 
                     //store output files as artifacts
                     core.info('Store txt Results as Artifact')
