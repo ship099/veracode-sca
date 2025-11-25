@@ -3,7 +3,7 @@ import { execSync, spawn } from "child_process";
 
 import * as core from '@actions/core'
 import { Options } from "./options";
-import { SCA_OUTPUT_FILE,run, runText } from "./index";
+import { SCA_OUTPUT_FILE, run, runText } from "./index";
 import * as github from '@actions/github'
 import { env } from "process";
 import { writeFile } from 'fs';
@@ -12,22 +12,22 @@ import { writeFileSync } from 'fs';
 import path from "path";
 
 const runnerOS = process.env.RUNNER_OS;
-const cleanCollectors = (inputArr:Array<string>) => {
-    let allowed:Array<string> = [];
+const cleanCollectors = (inputArr: Array<string>) => {
+    let allowed: Array<string> = [];
     for (var input of inputArr) {
-        if (input && collectors.indexOf(input.trim().toLowerCase())>-1) {
+        if (input && collectors.indexOf(input.trim().toLowerCase()) > -1) {
             allowed.push(input.trim().toLowerCase());
         }
     }
     return allowed;
 }
 
-export async function runAction (options: Options)  {
+export async function runAction(options: Options) {
     try {
-  
+
         core.info('Start command');
         let extraCommands: string = '';
-        if (options.url.length>0) {
+        if (options.url.length > 0) {
             extraCommands = `--url ${options.url} `;
         } else {
             extraCommands = `${options.path} `;
@@ -35,7 +35,7 @@ export async function runAction (options: Options)  {
 
         const skip = cleanCollectors(options["skip-collectors"]);
         let skipCollectorsAttr = '';
-        if (skip.length>0) {
+        if (skip.length > 0) {
             skipCollectorsAttr = `--skip-collectors ${skip.toString()} `;
         }
 
@@ -45,23 +45,8 @@ export async function runAction (options: Options)  {
         const commandOutput = options.createIssues ? `--json=${SCA_OUTPUT_FILE}` : '';
         extraCommands = `${extraCommands}${options.recursive ? '--recursive ' : ''}${options.quick ? '--quick ' : ''}${options.allowDirty ? '--allow-dirty ' : ''}${options.updateAdvisor ? '--update-advisor ' : ''}${skipVMS ? '--skip-vms ' : ''}${noGraphs ? '--no-graphs ' : ''}${options.debug ? '--debug ' : ''}${skipCollectorsAttr}`;
         if (runnerOS == 'Windows') {
-            const powershellCommand2 = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ab.ps1; & $env:TEMP\\ab.ps1 -s -- scan ${extraCommands} ${commandOutput}; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"`
-            
-            const powershellCommand1 = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $script = Join-Path $env:TEMP 'ci.ps1'; Invoke-WebRequest -Uri 'https://sca-downloads.veracode.com/ci.ps1' -OutFile $script; & $script -s -- scan ${extraCommands} ${commandOutput}; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"`
-            let pwdCommand2 = `dir ${process.env.TEMP}`
-            try {
-                console.log("before executing pwd2")
-                execSync(`powershell ${pwdCommand2}`, { stdio: 'inherit' })
-                // execSync(lsCommand, { stdio: 'inherit' })
-                console.log("after executing pwd2")
-
-            }
-            catch (e) {
-                console.log(e)
-            }
-            // const powershellCommand = `"Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile "${scriptPath}"; & "${scriptPath}" -s -- scan ${extraCommands} ${commandOutput}"`
-            const psCommand = `Set-ExecutionPolicy AllSigned -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://sca-downloads.veracode.com/ci.ps1'))`
             const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ci.ps1; & $env:TEMP\\ci.ps1 -s -- scan ${extraCommands} ${commandOutput}; exit $LASTEXITCODE"`
+            const command = `"Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ci.ps1; & $env:TEMP\\ci.ps1 -s -- scan ${extraCommands} ${commandOutput}; exit $LASTEXITCODE"`
             if (options.createIssues) {
                 core.info('Starting the scan')
 
@@ -160,21 +145,37 @@ export async function runAction (options: Options)  {
 
             } else {
                 core.info('Command to run: ' + powershellCommand)
-                let output:any = ''
-                try {
-                    output = execSync(powershellCommand, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 });//10MB
-                    core.info(`outpuy: ${output}`);
-                }
-                catch (error:any) {
-                    console.log((error.stdout).toString())
-                    console.log('status code',error.status)
-                    console.log('status type',typeof(error.status))
-                    if (error.status > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
-                        let summary_info = "Veraocde SCA Scan failed with exit code " + error.status + "\n"
-                        core.setFailed(summary_info)
-                    }
-                }
+                let output: any = ''
+                //  try {
+                const execution = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command], {
+                    stdio: "pipe",
+                    shell: false
+                });//10MB
 
+                // }
+                // catch (error:any) {
+                //     console.log((error.stdout).toString())
+                //     console.log('status code',error.status)
+                //     console.log('status type',typeof(error.status))
+                //     if (error.status > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
+                //         let summary_info = "Veraocde SCA Scan failed with exit code " + error.status + "\n"
+                //         core.setFailed(summary_info)
+                //     }
+                // }
+                execution.on('error', (data) => {
+                    core.error(data);
+                })
+                execution.stdout!.on('data', (data) => {
+                    output = `${output}${data}`;
+                });
+
+                execution.stderr!.on('data', (data) => {
+                    core.error(`stderr: ${data}`);
+                });
+
+                execution.on('close', async (code) => {
+                    //core.info(output);
+                    core.info(`Scan finished with exit code:  ${code}`);
                     try {
                         writeFileSync('scaResults.txt', output);
                         console.log('The file has been saved!');
@@ -264,10 +265,14 @@ export async function runAction (options: Options)  {
 
 
                     // if scan was set to fail the pipeline should fail and show a summary of the scan results
-                  
+                    if (code != null && code > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
+                        let summary_info = "Veraocde SCA Scan failed with exit code " + code + "\n"
+                        core.setFailed(summary_info)
+                    }
                     //run(options,core.info);
                     core.info('Finish command');
-                }
+                });
+            }
         }
         else {
             const command = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} ${commandOutput}`;
@@ -518,28 +523,28 @@ export async function runAction (options: Options)  {
 
 
 const collectors = [
-    "maven"	,
-"gradle",
-"ant",
-"jar",
-"sbt",	
-"glide"	,
-"go get",
-"go mod",
-"godep",
-"dep",
-"govendor",
-"trash",
-"pip"	,
-"pipenv",
-"bower"	,
-"yarn",
-"npm",
-"cocoapods",	
-"gem",
-"composer"	,
-"makefile"	,
-"dll",
-"msbuilddotnet",
+    "maven",
+    "gradle",
+    "ant",
+    "jar",
+    "sbt",
+    "glide",
+    "go get",
+    "go mod",
+    "godep",
+    "dep",
+    "govendor",
+    "trash",
+    "pip",
+    "pipenv",
+    "bower",
+    "yarn",
+    "npm",
+    "cocoapods",
+    "gem",
+    "composer",
+    "makefile",
+    "dll",
+    "msbuilddotnet",
 ]
 
