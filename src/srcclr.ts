@@ -45,9 +45,9 @@ export async function runAction (options: Options)  {
         const commandOutput = options.createIssues ? `--json=${SCA_OUTPUT_FILE}` : '';
         extraCommands = `${extraCommands}${options.recursive ? '--recursive ' : ''}${options.quick ? '--quick ' : ''}${options.allowDirty ? '--allow-dirty ' : ''}${options.updateAdvisor ? '--update-advisor ' : ''}${skipVMS ? '--skip-vms ' : ''}${noGraphs ? '--no-graphs ' : ''}${options.debug ? '--debug ' : ''}${skipCollectorsAttr}`;
         if (runnerOS == 'Windows') {
-            const powershellCommand1 = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ab.ps1; & $env:TEMP\\ab.ps1 -s -- scan ${extraCommands} ${commandOutput}"`
+            const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ab.ps1; & $env:TEMP\\ab.ps1 -s -- scan ${extraCommands} ${commandOutput}; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"`
             
-            const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $script = Join-Path $env:TEMP 'ci.ps1'; Invoke-WebRequest -Uri 'https://sca-downloads.veracode.com/ci.ps1' -OutFile $script; & $script -s -- scan ${extraCommands} ${commandOutput}; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"`
+            const powershellCommand1 = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $script = Join-Path $env:TEMP 'ci.ps1'; Invoke-WebRequest -Uri 'https://sca-downloads.veracode.com/ci.ps1' -OutFile $script; & $script -s -- scan ${extraCommands} ${commandOutput}; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"`
             let pwdCommand2 = `dir ${process.env.TEMP}`
             try {
                 console.log("before executing pwd2")
