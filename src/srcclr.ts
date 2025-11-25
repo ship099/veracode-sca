@@ -45,7 +45,7 @@ export async function runAction (options: Options)  {
         const commandOutput = options.createIssues ? `--json=${SCA_OUTPUT_FILE}` : '';
         extraCommands = `${extraCommands}${options.recursive ? '--recursive ' : ''}${options.quick ? '--quick ' : ''}${options.allowDirty ? '--allow-dirty ' : ''}${options.updateAdvisor ? '--update-advisor ' : ''}${skipVMS ? '--skip-vms ' : ''}${noGraphs ? '--no-graphs ' : ''}${options.debug ? '--debug ' : ''}${skipCollectorsAttr}`;
         if (runnerOS == 'Windows') {
-            const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ab.ps1; & $env:TEMP\\ab.ps1 -s -- scan ${extraCommands} ${commandOutput}; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"`
+            const powershellCommand2 = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ab.ps1; & $env:TEMP\\ab.ps1 -s -- scan ${extraCommands} ${commandOutput}; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"`
             
             const powershellCommand1 = `powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; $script = Join-Path $env:TEMP 'ci.ps1'; Invoke-WebRequest -Uri 'https://sca-downloads.veracode.com/ci.ps1' -OutFile $script; & $script -s -- scan ${extraCommands} ${commandOutput}; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"`
             let pwdCommand2 = `dir ${process.env.TEMP}`
@@ -61,7 +61,7 @@ export async function runAction (options: Options)  {
             }
             // const powershellCommand = `"Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile "${scriptPath}"; & "${scriptPath}" -s -- scan ${extraCommands} ${commandOutput}"`
             const psCommand = `Set-ExecutionPolicy AllSigned -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://sca-downloads.veracode.com/ci.ps1'))`
-
+            const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ci.ps1; & $env:TEMP\\ci.ps1 -s -- scan ${extraCommands} ${commandOutput}"; exit $LASTEXITCODE`
             if (options.createIssues) {
                 core.info('Starting the scan')
 
