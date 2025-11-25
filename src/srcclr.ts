@@ -147,10 +147,10 @@ export async function runAction(options: Options) {
                 core.info('Command to run: ' + powershellCommand)
                 let output: any = ''
                 //  try {
-                const execution = spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', `& { ${command} }`], {
-                    // stdio: "pipe",
-                    // shell: false
-                 encoding: 'utf8'
+                const execution = spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', `& { ${command} }`], {
+                    stdio: "pipe",
+                    shell: false
+
                 });//10MB
 
                 // }
@@ -163,22 +163,20 @@ export async function runAction(options: Options) {
                 //         core.setFailed(summary_info)
                 //     }
                 // }
-                // execution.on('error', (data) => {
-                //     core.error(data);
-                // })
-                // execution.stdout!.on('data', (data) => {
-                //     output = `${output}${data}`;
-                // });
+                execution.on('error', (data) => {
+                    core.error(data);
+                })
+                execution.stdout!.on('data', (data) => {
+                    output = `${output}${data}`;
+                });
 
-                // execution.stderr!.on('data', (data) => {
-                //     core.error(`stderr: ${data}`);
-                // });
+                execution.stderr!.on('data', (data) => {
+                    core.error(`stderr: ${data}`);
+                });
 
-                // execution.on('close', async (code) => {
-                    //core.info(output);
-                    core.info(`Scan finished with exit code:  ${execution.status}`);
-                    console.log("error",execution.stderr);
-                    console.log("error",execution.stdout);
+                execution.on('close', async (code) => {
+                    core.info(output);
+                    core.info(`Scan finished with exit code:  ${code}`);
                     try {
                         writeFileSync('scaResults.txt', output);
                         console.log('The file has been saved!');
@@ -268,13 +266,13 @@ export async function runAction(options: Options) {
 
 
                     // if scan was set to fail the pipeline should fail and show a summary of the scan results
-                    if (execution.status != null && execution.status > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
-                        let summary_info = "Veraocde SCA Scan failed with exit code " + execution.status + "\n"
+                    if (code != null && code > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
+                        let summary_info = "Veraocde SCA Scan failed with exit code " + code + "\n"
                         core.setFailed(summary_info)
                     }
                     //run(options,core.info);
                     core.info('Finish command');
-                // });
+                 });
             }
         }
         else {
