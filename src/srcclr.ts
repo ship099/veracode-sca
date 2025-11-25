@@ -160,7 +160,7 @@ export async function runAction (options: Options)  {
 
             } else {
                 core.info('Command to run: ' + powershellCommand)
-                let output:string = ''
+                let output:any = ''
                 try {
                     output = execSync(powershellCommand, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 });//10MB
                     core.info(`outpuy: ${output}`);
@@ -176,8 +176,8 @@ export async function runAction (options: Options)  {
                     }
                 }
                 catch (error:any) {
-                    console.log(error)
-                    if (error.statuscode != null && error.statuscode > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
+                    console.log((output.stdout).toString())
+                    if (error.status != null && error.status > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
                         let summary_info = "Veraocde SCA Scan failed with exit code " + error.statuscode + "\n"
                         core.setFailed(summary_info)
                     }
