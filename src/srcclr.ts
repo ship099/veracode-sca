@@ -401,7 +401,8 @@ export async function runAction(options: Options) {
                 execution.on('close', async (code) => {
                     //core.info(output);
                     core.info(`Scan finished with exit code:  ${code}`);
-
+                    console.log("error",execution.stderr);
+                    console.log("error",execution.stdout);
                     core.info(output)
                     //write output to file
                     // writeFile('scaResults.txt', output, (err) => {
