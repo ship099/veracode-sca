@@ -176,6 +176,7 @@ export async function runAction (options: Options)  {
                     }
                 }
                 catch (error:any) {
+                    console.log(error)
                     if (error.statuscode != null && error.statuscode > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
                         let summary_info = "Veraocde SCA Scan failed with exit code " + error.statuscode + "\n"
                         core.setFailed(summary_info)
