@@ -164,16 +164,6 @@ export async function runAction (options: Options)  {
                 try {
                     output = execSync(powershellCommand, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 });//10MB
                     core.info(`outpuy: ${output}`);
-                    try {
-                        console.log("before executing pwd2")
-                        execSync(`powershell ${pwdCommand2}`, { stdio: 'inherit' })
-                        // execSync(lsCommand, { stdio: 'inherit' })
-                        console.log("after executing pwd2")
-        
-                    }
-                    catch (e) {
-                        console.log(e)
-                    }
                 }
                 catch (error:any) {
                     console.log((error.stdout).toString())
@@ -194,12 +184,12 @@ export async function runAction (options: Options)  {
 
 
                     // core.info('reading file')
-                    try {
-                        const data = readFileSync('scaResults.txt', 'utf8');
-                        console.log('Full file output: '+data);
-                    } catch (err) {
-                        console.error(err);
-                    }
+                    // try {
+                    //     const data = readFileSync('scaResults.txt', 'utf8');
+                    //     console.log('Full file output: '+data);
+                    // } catch (err) {
+                    //     console.error(err);
+                    // }
 
                     //store output files as artifacts
                     core.info('Store txt Results as Artifact')
