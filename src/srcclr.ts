@@ -46,7 +46,7 @@ export async function runAction(options: Options) {
         extraCommands = `${extraCommands}${options.recursive ? '--recursive ' : ''}${options.quick ? '--quick ' : ''}${options.allowDirty ? '--allow-dirty ' : ''}${options.updateAdvisor ? '--update-advisor ' : ''}${skipVMS ? '--skip-vms ' : ''}${noGraphs ? '--no-graphs ' : ''}${options.debug ? '--debug ' : ''}${skipCollectorsAttr}`;
         if (runnerOS == 'Windows') {
             const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ci.ps1; & $env:TEMP\\ci.ps1 -s -- scan ${extraCommands} ${commandOutput}; exit $LASTEXITCODE"`
-            const command = `"Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ci.ps1; & $env:TEMP\\ci.ps1 -s -- scan ${extraCommands} ${commandOutput}; exit $LASTEXITCODE"`
+            const command = `Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ci.ps1; & $env:TEMP\\ci.ps1 -s -- scan ${extraCommands} ${commandOutput}; exit $LASTEXITCODE`
             if (options.createIssues) {
                 core.info('Starting the scan')
 
