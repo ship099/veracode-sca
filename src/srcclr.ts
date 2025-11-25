@@ -148,8 +148,9 @@ export async function runAction(options: Options) {
                 let output: any = ''
                 //  try {
                 const execution = spawnSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command], {
-                    stdio: "pipe",
-                    shell: false
+                    // stdio: "pipe",
+                    // shell: false
+                 encoding: 'utf8'
                 });//10MB
 
                 // }
