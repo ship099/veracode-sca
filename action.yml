@@ -25,6 +25,10 @@ inputs:
     description: "An attribute to instruct the action to create an issue from found vulnerability or just simple text output"
     required: false
     default: "false"
+  json-output:
+    description: "An attribute to instruct the action to generate JSON output (scaResults.json) instead of text output (scaResults.txt)"
+    required: false
+    default: "false"
   path:
     description: "A path within the repository where the build definition starts"
     required: false
@@ -65,6 +69,18 @@ inputs:
     description: "Break the build based on the Policy Findings"
     required: false
     default: "false"
+  sca_fix_enabled:
+    description: "Enable SCA fix vulnerability listing generation"
+    required: false
+    default: "false"
+  profile_name:
+    description: "Profile name for SCA vuln list metadata"
+    required: false
+    default: ""
+  pr_number:
+    description: "Pull request number for SCA vuln list metadata"
+    required: false
+    default: ""
 outputs:
   scan-url:
     description: "URL to the Veracode SCA scan results report"

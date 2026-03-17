@@ -21,6 +21,7 @@ const cleanCollectors = (inputArr: Array<string>) => {
     return allowed;
 }
 
+
 /**
  * Extracts the scan URL from the Veracode SCA output
  * Looks for a line containing "Full Report Details" followed by a URL
@@ -104,9 +105,124 @@ const extractScanUrl = (output: string): string | null => {
     return null;
 }
 
-export async function runAction(options: Options) {
-    try {
+/**
+ * TEMPORARY: Sequential dual-scan wrapper for SCA Fix support
+ * When scaFixEnabled is true, runs txt scan followed by json scan in same action
+ * TODO: Remove this wrapper when scanner supports native dual output (txt + json simultaneously)
+ */
+async function runSequentialDualScans(options: Options): Promise<void> {
+    core.info('=== Starting Sequential Dual-Scan Mode ===');
+    core.info('Note: Running TXT scan first, then JSON scan sequentially to avoid deadlock');
 
+    // Run TXT scan first (skip artifact upload and vuln list generation - will handle both later)
+    core.info('Step 1: Running TXT scan...');
+    const txtOptions = { ...options, jsonOutput: false };
+    await runSingleScan(
+        txtOptions,
+        true,   // skipArtifactUpload
+        true    // skipVulnListGeneration
+    );
+    core.info('✓ TXT scan completed');
+
+    // Run JSON scan second
+    core.info('Step 2: Running JSON scan...');
+    const jsonOptions = { ...options, jsonOutput: true };
+    try {
+        await runSingleScan(
+            jsonOptions,
+            true,   // skipArtifactUpload
+            true    // skipVulnListGeneration
+        );
+        core.info('✓ JSON scan completed');
+    } catch (jsonError: any) {
+        core.warning(`JSON scan encountered an issue, but TXT results are available: ${jsonError.message || jsonError}`);
+    }
+
+    // Combine both scan results into single artifact
+    core.info('Step 3: Uploading combined scan results...');
+    await combineScanArtifacts();
+
+    // Generate vulnerability list after both scans complete
+    core.info('Step 4: Generating vulnerability list...');
+    await generateVulnList(options);
+}
+
+/**
+ * Combines both scaResults.txt and scaResults.json into single artifact
+ * When scanner supports native dual output, this function can be removed
+ */
+async function combineScanArtifacts(): Promise<void> {
+    const { DefaultArtifactClient } = require('@actions/artifact');
+    const artifactV1 = require('@actions/artifact-v1');
+    let artifactClient;
+
+    const platformType = process.env.PLATFORM_TYPE || 'STANDARD';
+    if (platformType === 'ENTERPRISE') {
+        artifactClient = artifactV1.create();
+    } else {
+        artifactClient = new DefaultArtifactClient();
+    }
+
+    const files: string[] = [];
+
+    if (existsSync('scaResults.txt')) {
+        files.push('scaResults.txt');
+    }
+    if (existsSync(SCA_OUTPUT_FILE)) {
+        files.push(SCA_OUTPUT_FILE);
+    }
+
+    if (files.length === 0) {
+        core.warning('No scan results found to combine');
+        return;
+    }
+
+    try {
+        await artifactClient.uploadArtifact(
+            'Veracode Agent Based SCA Results',
+            files,
+            process.cwd(),
+            { continueOnError: true }
+        );
+        core.info(`✓ Combined artifact uploaded with ${files.length} file(s)`);
+    } catch (error: any) {
+        core.warning(`Failed to upload combined artifact: ${error.message || error}`);
+    }
+}
+
+/**
+ * Helper to upload artifact conditionally
+ * Skips upload if skipArtifactUpload is true (used in dual-scan mode)
+ */
+async function uploadArtifactIfNeeded(
+    artifactClient: any,
+    artifactName: string,
+    files: string[],
+    skipArtifactUpload: boolean,
+    fileType: 'txt' | 'json'
+): Promise<void> {
+    if (skipArtifactUpload) {
+        core.info(`Skipping ${fileType.toUpperCase()} artifact upload (will be combined with other scans)`);
+        return;
+    }
+
+    core.info(`Store ${fileType.toUpperCase()} Results as Artifact`);
+    try {
+        await artifactClient.uploadArtifact(artifactName, files, process.cwd(), { continueOnError: true });
+    } catch (error: any) {
+        core.warning(`Failed to upload ${fileType} artifact: ${error.message || error}`);
+    }
+}
+
+/**
+ * Runs a single scan (txt or json based on options.jsonOutput)
+ * This is the original runAction logic extracted for reuse
+ * @param options - Scan options
+ * @param skipArtifactUpload - If true, skip artifact upload (used in dual-scan mode where combineScanArtifacts handles it)
+ * @param skipVulnListGeneration - If true, skip vulnerability list generation (used in dual-scan mode where it's called after combining)
+ */
+async function runSingleScan(options: Options, skipArtifactUpload: boolean = false, skipVulnListGeneration: boolean = false): Promise<void> {
+    try {
         core.info('Start command');
         let extraCommands: string = '';
         if (options.url.length > 0) {
@@ -130,22 +246,27 @@ export async function runAction(options: Options) {
         const noGraphs = options["no-graphs"]
         const skipVMS = options["skip-vms"]
 
-        const commandOutput = options.createIssues ? `--json=${SCA_OUTPUT_FILE}` : '';
+        const shouldGenerateJson = options.createIssues || options.jsonOutput;
+        const commandOutput = options.createIssues || options.jsonOutput ? `--json=${SCA_OUTPUT_FILE}` : '';
+        // Artifact name depends on output type: TXT uses standard name, JSON uses sca-fix specific name
+        const artifactNameBase = options.jsonOutput ? 'Veracode Agent Based SCA Results Json' : 'Veracode Agent Based SCA Results';
         extraCommands = `${extraCommands}${options.recursive ? '--recursive ' : ''}${options.quick ? '--quick ' : ''}${options.allowDirty ? '--allow-dirty ' : ''}${options.updateAdvisor ? '--update-advisor ' : ''}${skipVMS ? '--skip-vms ' : ''}${noGraphs ? '--no-graphs ' : ''}${options.debug ? '--debug ' : ''}${skipCollectorsAttr}${scanCollectorsAttr}`;
 
         if (runnerOS == 'Windows') {
             const powershellCommand = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest https://sca-downloads.veracode.com/ci.ps1 -OutFile $env:TEMP\\ci.ps1; & $env:TEMP\\ci.ps1 -s -- scan ${extraCommands} ${commandOutput}"`
 
-            if (options.createIssues) {
+            if (shouldGenerateJson) {
                 core.info('Starting the scan')
                 let output: string = ''
                 try {
                     output = execSync(powershellCommand, { encoding: 'utf-8', maxBuffer: 1024 * 1024 * 10 });//10MB
-                    core.info('Create issue "true" - on close')
+                    if (options.createIssues) {
+                        core.info('Create issue "true" - on close')
+                    }
                     if (core.isDebug()) {
                         core.info(output);
                     }
-                    
+
                     // Extract and set scan URL output
                     const scanUrl = extractScanUrl(output);
                     if (scanUrl) {
@@ -157,11 +278,11 @@ export async function runAction(options: Options) {
                 }
                 catch (error: any) {
                     if (error.status != null && error.status > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
-                        let summary_info = "Veraocde SCA Scan failed with exit code " + error.statuscode + "\n"
+                        let summary_info = "Veracode SCA Scan failed with exit code " + error.statuscode + "\n"
                         core.info(output)
                         core.setFailed(summary_info)
                     }
-                    
+
                     // Try to extract URL even if there was an error
                     const scanUrl = extractScanUrl(output);
                     if (scanUrl) {
@@ -170,47 +291,49 @@ export async function runAction(options: Options) {
                     }
                 }
 
-                //Pull request decoration
-                core.info('check if we run on a pull request')
-                let pullRequest = process.env.GITHUB_REF
-                let isPR: any = pullRequest?.indexOf("pull")
-                let summary_message = ""
+                // PR decoration and issue generation (only if createIssues is enabled)
+                if (options.createIssues) {
+                    //Pull request decoration
+                    core.info('check if we run on a pull request')
+                    let pullRequest = process.env.GITHUB_REF
+                    let isPR: any = pullRequest?.indexOf("pull")
+                    let summary_message = ""
 
-                if (isPR >= 1) {
-                    core.info('We run on a PR, add more messaging')
-                    const context = github.context
-                    const repository: any = process.env.GITHUB_REPOSITORY
-                    const repo = repository.split("/");
-                    const commentID: any = context.payload.pull_request?.number
-                    let pr_header = '<br>![](https://www.veracode.com/themes/veracode_new/library/img/veracode-black-hires.svg)<br>'
-                    summary_message = `Veracode SCA Scan finished. Please review created and linked issues`
+                    if (isPR >= 1) {
+                        core.info('We run on a PR, add more messaging')
+                        const context = github.context
+                        const repository: any = process.env.GITHUB_REPOSITORY
+                        const repo = repository.split("/");
+                        const commentID: any = context.payload.pull_request?.number
+                        let pr_header = '<br>![](https://www.veracode.com/themes/veracode_new/library/img/veracode-black-hires.svg)<br>'
+                        summary_message = `Veracode SCA Scan finished. Please review created and linked issues`
 
-                    try {
-                        const baseUrl = process.env.GITHUB_API_URL || 'https://api.github.com';
-                        const octokit = github.getOctokit(options.github_token, { baseUrl });
+                        try {
+                            const baseUrl = process.env.GITHUB_API_URL || 'https://api.github.com';
+                            const octokit = github.getOctokit(options.github_token, { baseUrl });
 
-                        const { data: comment } = await octokit.rest.issues.createComment({
-                            owner: repo[0],
-                            repo: repo[1],
-                            issue_number: commentID,
-                            body: pr_header + summary_message,
-                        });
-                        core.info('Adding scan results message as comment to PR #' + commentID)
-                    } catch (error: any) {
-                        core.info(error);
+                            const { data: comment } = await octokit.rest.issues.createComment({
+                                owner: repo[0],
+                                repo: repo[1],
+                                issue_number: commentID,
+                                body: pr_header + summary_message,
+                            });
+                            core.info('Adding scan results message as comment to PR #' + commentID)
+                        } catch (error: any) {
+                            core.info(error);
+                        }
                     }
+                    else {
+                        summary_message = `Veracode SCA Scan finished. Please review created issues`
+                    }
+
+                    //Generate issues
+                    run(options, core.info);
+
+                    core.info(summary_message);
                 }
-                else {
-                    summary_message = `Veracode SCA Scan finished. Please review created issues`
-                }
 
-                //Generate issues
-                run(options, core.info);
-
-                core.info(summary_message);
-
-                //store output files as artifacts
-                core.info('Store json Results as Artifact')
+                // Store output files as artifacts (skip if in dual-scan mode)
                 const { DefaultArtifactClient } = require('@actions/artifact');
                 const artifactV1 = require('@actions/artifact-v1');
                 let artifactClient;
@@ -222,18 +345,8 @@ export async function runAction(options: Options) {
                     artifactClient = new DefaultArtifactClient();
                     core.info(`Initialized the artifact object using version V2.`);
                 }
-                const artifactName = 'Veracode Agent Based SCA Results';
-                const files = [
-                    'scaResults.json'
-                ]
 
-                const rootDirectory = process.cwd()
-                const artefactOptions = {
-                    continueOnError: true
-                }
-
-                const uploadResult = await artifactClient.uploadArtifact(artifactName, files, rootDirectory, artefactOptions)
-
+                await uploadArtifactIfNeeded(artifactClient, artifactNameBase, ['scaResults.json'], skipArtifactUpload, 'json')
 
                 core.info('Finish command');
             } else {
@@ -278,7 +391,7 @@ export async function runAction(options: Options) {
                     }
                     
                     if (error.status != null && error.status > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
-                        let summary_info = "Veraocde SCA Scan failed with exit code " + error.statuscode + "\n"
+                        let summary_info = "Veracode SCA Scan failed with exit code " + error.statuscode + "\n"
                         core.setFailed(summary_info)
                     }
                     
@@ -315,8 +428,7 @@ export async function runAction(options: Options) {
                 //     console.error(err);
                 // }
 
-                //store output files as artifacts
-                core.info('Store txt Results as Artifact')
+                // Store output files as artifacts (skip if in dual-scan mode)
                 const { DefaultArtifactClient } = require('@actions/artifact');
                 const artifactV1 = require('@actions/artifact-v1');
                 let artifactClient;
@@ -328,17 +440,8 @@ export async function runAction(options: Options) {
                     artifactClient = new DefaultArtifactClient();
                     core.info(`Initialized the artifact object using version V2.`);
                 }
-                const artifactName = 'Veracode Agent Based SCA Results';
-                const files = [
-                    'scaResults.txt'
-                ]
 
-                const rootDirectory = process.cwd()
-                const artefactOptions = {
-                    continueOnError: true
-                }
-
-                const uploadResult = await artifactClient.uploadArtifact(artifactName, files, rootDirectory, artefactOptions)
+                await uploadArtifactIfNeeded(artifactClient, artifactNameBase, ['scaResults.txt'], skipArtifactUpload, 'txt')
 
 
 
@@ -357,7 +460,7 @@ export async function runAction(options: Options) {
 
 
                     let commentBody = '<br>![](https://www.veracode.com/sites/default/files/2022-04/logo_1.svg)<br>'
-                    commentBody += "<pre>Veraocde SCA Scan finished" + "\n"
+                    commentBody += "<pre>Veracode SCA Scan finished" + "\n"
                     commentBody += '\n<details><summary>Veracode SCA Scan details</summary><p>\n'
                     commentBody += output //.replace(/    /g, '&nbsp;&nbsp;&nbsp;&nbsp;');
                     commentBody += '</p></details>\n</pre>'
@@ -389,33 +492,38 @@ export async function runAction(options: Options) {
         }
         else {
             const command = `curl -sSL https://download.sourceclear.com/ci.sh | sh -s -- scan ${extraCommands} ${commandOutput}`;
+
             core.info(command);
 
-            if (options.createIssues) {
+            if (shouldGenerateJson) {
                 core.info('Starting the scan')
-                const execution = spawn('sh', ['-c', command], {
-                    stdio: "pipe",
-                    shell: false
-                });
+                await new Promise<void>((resolve, reject) => {
+                    const execution = spawn('sh', ['-c', command], {
+                        stdio: "pipe",
+                        shell: false
+                    });
 
-                execution.on('error', (data) => {
-                    core.error(data);
-                })
+                    execution.on('error', (data) => {
+                        core.error(data);
+                        reject(data);
+                    })
 
-                let output: string = '';
-                let stderrOutput: string = '';
-                execution.stdout!.on('data', (data) => {
-                    output = `${output}${data}`;
-                });
+                    let output: string = '';
+                    let stderrOutput: string = '';
+                    execution.stdout!.on('data', (data) => {
+                        output = `${output}${data}`;
+                    });
 
-                execution.stderr!.on('data', (data) => {
-                    const dataStr = data.toString();
-                    stderrOutput = `${stderrOutput}${dataStr}`;
-                    core.error(`stderr: ${dataStr}`);
-                });
+                    execution.stderr!.on('data', (data) => {
+                        const dataStr = data.toString();
+                        stderrOutput = `${stderrOutput}${dataStr}`;
+                        core.error(`stderr: ${dataStr}`);
+                    });
 
-                execution.on('close', async (code) => {
-                    core.info('Create issue "true" - on close')
+                    execution.on('close', async (code) => {
+                    if (options.createIssues) {
+                        core.info('Create issue "true" - on close')
+                    }
                     if (core.isDebug()) {
                         core.info(output);
                     }
@@ -442,51 +550,54 @@ export async function runAction(options: Options) {
                         }
                     }
 
-                    //Pull request decoration
-                    core.info('check if we run on a pull request')
-                    let pullRequest = process.env.GITHUB_REF
-                    let isPR: any = pullRequest?.indexOf("pull")
+                    // PR decoration and issue generation (only if createIssues is enabled)
                     let summary_message = ""
+                    if (options.createIssues) {
+                        //Pull request decoration
+                        core.info('check if we run on a pull request')
+                        let pullRequest = process.env.GITHUB_REF
+                        let isPR: any = pullRequest?.indexOf("pull")
 
-                    if (isPR >= 1) {
-                        core.info('We run on a PR, add more messaging')
-                        const context = github.context
-                        const repository: any = process.env.GITHUB_REPOSITORY
-                        const repo = repository.split("/");
-                        const commentID: any = context.payload.pull_request?.number
-                        let pr_header = '<br>![](https://www.veracode.com/themes/veracode_new/library/img/veracode-black-hires.svg)<br>'
-                        summary_message = `Veracode SCA Scan finished with exit code: ${code}. Please review created and linked issues`
+                        if (isPR >= 1) {
+                            core.info('We run on a PR, add more messaging')
+                            const context = github.context
+                            const repository: any = process.env.GITHUB_REPOSITORY
+                            const repo = repository.split("/");
+                            const commentID: any = context.payload.pull_request?.number
+                            let pr_header = '<br>![](https://www.veracode.com/themes/veracode_new/library/img/veracode-black-hires.svg)<br>'
+                            summary_message = `Veracode SCA Scan finished with exit code: ${code}. Please review created and linked issues`
 
-                        try {
-                            const baseUrl = process.env.GITHUB_API_URL || 'https://api.github.com';
-                            const octokit = github.getOctokit(options.github_token, { baseUrl });
+                            try {
+                                const baseUrl = process.env.GITHUB_API_URL || 'https://api.github.com';
+                                const octokit = github.getOctokit(options.github_token, { baseUrl });
 
-                            const { data: comment } = await octokit.rest.issues.createComment({
-                                owner: repo[0],
-                                repo: repo[1],
-                                issue_number: commentID,
-                                body: pr_header + summary_message,
-                            });
-                            core.info('Adding scan results message as comment to PR #' + commentID)
-                        } catch (error: any) {
-                            core.info(error);
+                                const { data: comment } = await octokit.rest.issues.createComment({
+                                    owner: repo[0],
+                                    repo: repo[1],
+                                    issue_number: commentID,
+                                    body: pr_header + summary_message,
+                                });
+                                core.info('Adding scan results message as comment to PR #' + commentID)
+                            } catch (error: any) {
+                                core.info(error);
+                            }
                         }
-                    }
-                    else {
-                        summary_message = `Veracode SCA Scan finished with exit code: ${code}. Please review created issues`
-                    }
+                        else {
+                            summary_message = `Veracode SCA Scan finished with exit code: ${code}. Please review created issues`
+                        }
 
-                    //Generate issues
-                    run(options, core.info);
+                        //Generate issues
+                        run(options, core.info);
 
-                    core.info(summary_message);
+                        core.info(summary_message);
+                    }
                     // if scan was set to fail the pipeline should fail and show a summary of the scan results
-                    if (code != null && code > 0) {
-                        core.setFailed(summary_message)
+                     if (code != null && code > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
+                        let summary_info = "Veracode SCA Scan failed with exit code " + code + "\n"
+                        core.setFailed(summary_info)
                     }
 
-                    //store output files as artifacts
-                    core.info('Store json Results as Artifact')
+                    // Store output files as artifacts (skip if in dual-scan mode)
                     const { DefaultArtifactClient } = require('@actions/artifact');
                     const artifactV1 = require('@actions/artifact-v1');
                     let artifactClient;
@@ -498,52 +609,44 @@ export async function runAction(options: Options) {
                         artifactClient = new DefaultArtifactClient();
                         core.info(`Initialized the artifact object using version V2.`);
                     }
-                    const artifactName = 'Veracode Agent Based SCA Results';
-                    const files = [
-                        'scaResults.json'
-                    ]
 
-                    const rootDirectory = process.cwd()
-                    const artefactOptions = {
-                        continueOnError: true
-                    }
-
-                    const uploadResult = await artifactClient.uploadArtifact(artifactName, files, rootDirectory, artefactOptions)
-
-
-
+                    await uploadArtifactIfNeeded(artifactClient, artifactNameBase, ['scaResults.json'], skipArtifactUpload, 'json')
 
                     core.info('Finish command');
+                    resolve();
+                    });
                 });
 
 
             } else {
                 core.info('Command to run: ' + command)
-                const execution = spawn('sh', ['-c', command], {
-                    stdio: "pipe",
-                    shell: false
-                });
+                await new Promise<void>((resolve, reject) => {
+                    const execution = spawn('sh', ['-c', command], {
+                        stdio: "pipe",
+                        shell: false
+                    });
 
-                execution.on('error', (data) => {
-                    core.error(data);
-                })
+                    execution.on('error', (data) => {
+                        core.error(data);
+                        reject(data);
+                    })
 
-                let output: string = '';
-                let stderrOutput: string = '';
-                execution.stdout!.on('data', (data) => {
-                    const dataStr = data.toString();
-                    output = `${output}${dataStr}`;
-                    // Also log to see output in real-time
-                    core.info(dataStr);
-                });
+                    let output: string = '';
+                    let stderrOutput: string = '';
+                    execution.stdout!.on('data', (data) => {
+                        const dataStr = data.toString();
+                        output = `${output}${dataStr}`;
+                        // Also log to see output in real-time
+                        core.info(dataStr);
+                    });
 
-                execution.stderr!.on('data', (data) => {
-                    const dataStr = data.toString();
-                    stderrOutput = `${stderrOutput}${dataStr}`;
-                    core.error(`stderr: ${dataStr}`);
-                });
+                    execution.stderr!.on('data', (data) => {
+                        const dataStr = data.toString();
+                        stderrOutput = `${stderrOutput}${dataStr}`;
+                        core.error(`stderr: ${dataStr}`);
+                    });
 
-                execution.on('close', async (code) => {
+                    execution.on('close', async (code) => {
                     //core.info(output);
                     core.info(`Scan finished with exit code:  ${code}`);
 
@@ -606,8 +709,7 @@ export async function runAction(options: Options) {
                         }
                     }
 
-                    //store output files as artifacts
-                    core.info('Store txt Results as Artifact')
+                    // Store output files as artifacts (skip if in dual-scan mode)
                     const { DefaultArtifactClient } = require('@actions/artifact');
                     const artifactV1 = require('@actions/artifact-v1');
                     let artifactClient;
@@ -619,17 +721,8 @@ export async function runAction(options: Options) {
                         artifactClient = new DefaultArtifactClient();
                         core.info(`Initialized the artifact object using version V2.`);
                     }
-                    const artifactName = 'Veracode Agent Based SCA Results';
-                    const files = [
-                        'scaResults.txt'
-                    ]
 
-                    const rootDirectory = process.cwd()
-                    const artefactOptions = {
-                        continueOnError: true
-                    }
-
-                    const uploadResult = await artifactClient.uploadArtifact(artifactName, files, rootDirectory, artefactOptions)
+                    await uploadArtifactIfNeeded(artifactClient, artifactNameBase, ['scaResults.txt'], skipArtifactUpload, 'txt')
 
 
 
@@ -651,7 +744,7 @@ export async function runAction(options: Options) {
 
 
                         let commentBody = '<br>![](https://www.veracode.com/sites/default/files/2022-04/logo_1.svg)<br>'
-                        commentBody += "<pre>Veraocde SCA Scan finished with exit code " + code + "\n"
+                        commentBody += "<pre>Veracode SCA Scan finished with exit code " + code + "\n"
                         commentBody += '\n<details><summary>Veracode SCA Scan details</summary><p>\n'
                         commentBody += output //.replace(/    /g, '&nbsp;&nbsp;&nbsp;&nbsp;');
                         commentBody += '</p></details>\n</pre>'
@@ -681,13 +774,20 @@ export async function runAction(options: Options) {
 
                     // if scan was set to fail the pipeline should fail and show a summary of the scan results
                     if (code != null && code > 0 && (options.breakBuildOnPolicyFindings == 'true')) {
-                        let summary_info = "Veraocde SCA Scan failed with exit code " + code + "\n"
+                        let summary_info = "Veracode SCA Scan failed with exit code " + code + "\n"
                         core.setFailed(summary_info)
                     }
                     //run(options,core.info);
                     core.info('Finish command');
+                    resolve();
+                    });
                 });
             }
+        }
+
+        // Generate vulnerability list after scan completes (skip in dual-scan mode)
+        if (!skipVulnListGeneration) {
+            await generateVulnList(options);
         }
 
     } catch (error) {
@@ -703,6 +803,229 @@ export async function runAction(options: Options) {
     }
 }
 
+/**
+ * Main entry point - routes to dual-scan or single-scan based on scaFixEnabled
+ */
+export async function runAction(options: Options) {
+    try {
+        if (options.scaFixEnabled) {
+            // Temporary dual-scan mode for SCA Fix support
+            await runSequentialDualScans(options);
+        } else {
+            // Standard single scan (backward compatible)
+            await runSingleScan(options);
+        }
+    } catch (error) {
+        if (error instanceof Error) {
+            core.setFailed(error.message);
+        } else {
+            core.setFailed("Unknown error during scan execution");
+        }
+    }
+}
+
+
+/**
+ * Generates SCA vulnerability list using Veracode CLI
+ * This function is called at the end of runAction when sca_fix_enabled is true
+ */
+async function generateVulnList(options: Options): Promise<void> {
+    try {
+        core.info('=== Starting SCA Vulnerability List Generation ===');
+
+        // Check if sca_fix_enabled is true
+        if (!options.scaFixEnabled) {
+            core.info('veracode-sca-fix is NOT enabled, skipping vulnerability list generation');
+            return;
+        }
+
+        core.info('veracode-sca-fix is enabled, proceeding with vulnerability list generation');
+
+        // Check if PR number exists in options
+        if (!options.prNumber || options.prNumber === 0 || isNaN(options.prNumber)) {
+            core.info('No PR number found in options, skipping vulnerability list generation');
+            return;
+        }
+
+        const prNumber = options.prNumber;
+        core.info(`PR number found: ${prNumber}`);
+
+        // Check if scaResults.json exists
+        if (!existsSync(SCA_OUTPUT_FILE)) {
+            core.warning(`SCA results file not found: ${SCA_OUTPUT_FILE}. Skipping vulnerability list generation.`);
+            return;
+        }
+
+        // Check for required environment variables
+        const veracodeApiKeyId = process.env.VERACODE_API_KEY_ID;
+        const veracodeApiKeySecret = process.env.VERACODE_API_KEY_SECRET;
+
+        if (!veracodeApiKeyId || !veracodeApiKeySecret) {
+            core.warning('VERACODE_API_KEY_ID or VERACODE_API_KEY_SECRET not set. Skipping vulnerability list generation.');
+            return;
+        }
+
+        const workingDir = process.cwd();
+        core.info(`Working directory: ${workingDir}`);
+
+        // Check if helper/cli directory exists
+        const helperCliPath = runnerOS === 'Windows'
+            ? `${workingDir}\\veracode-helper\\helper\\cli`
+            : `${workingDir}/veracode-helper/helper/cli`;
+
+        if (!existsSync(helperCliPath)) {
+            core.warning(`Helper CLI directory not found at ${helperCliPath}. Skipping vulnerability list generation.`);
+            return;
+        }
+
+        let cliExecutablePath: string = '';
+        let veracodeCommand: string;
+        const vulnListingFile = 'veracode-cli.vuln.listing.json';
+
+        if (runnerOS === 'Windows') {
+            // Windows implementation
+            // Find the CLI ps1 installer file
+            const findPs1Command = `powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -Path '${helperCliPath}' -Filter *.ps1 | Select-Object -First 1 -ExpandProperty FullName"`;
+            const installerFile = execSync(findPs1Command, { encoding: 'utf-8' }).trim();
+
+            if (!installerFile || installerFile === '') {
+                core.warning(`No CLI ps1 installer file found in ${helperCliPath}. Skipping vulnerability list generation.`);
+                return;
+            }
+
+            core.info(`Found CLI installer: ${installerFile}`);
+
+            // Run the installer to install Veracode CLI
+            core.info('Running Veracode CLI installer...');
+            try {
+                const installCommand = `powershell -NoProfile -ExecutionPolicy Bypass -File "${installerFile}"`;
+                const installOutput = execSync(installCommand, { encoding: 'utf-8' });
+                core.info('Veracode CLI installation completed');
+                if (core.isDebug()) {
+                    core.info(installOutput);
+                }
+            } catch (error: any) {
+                core.warning(`Failed to install Veracode CLI: ${error.message}`);
+                return;
+            }
+
+            // Check where veracode command is located using Get-Command
+            core.info('Set veracode.exe command location...');
+            const appDataPath = process.env.APPDATA || '';
+            if (!appDataPath) {
+                core.warning('APPDATA environment variable not found. Skipping vulnerability list generation.');
+                return;
+            }
+            cliExecutablePath = `${appDataPath}\\veracode\\veracode.exe`;
+            core.info(`Expected Veracode CLI installation path: ${cliExecutablePath}`);
+
+            // Verify the CLI was installed
+            if (!existsSync(cliExecutablePath)) {
+                core.warning(`Veracode CLI not found at ${cliExecutablePath}. Installation may have failed.`);
+                return;
+            }
+
+            core.info(`Veracode CLI successfully installed and verified at: ${cliExecutablePath}`);
+
+            // Build the veracode fix sca command for Windows using full path
+            veracodeCommand = `"${cliExecutablePath}" fix sca "${workingDir}" -r "${workingDir}\\${SCA_OUTPUT_FILE}" --list-only --json "${vulnListingFile}"`;
+
+            core.info(`Running command: ${veracodeCommand}`);
+
+        } else {
+            // Linux/Unix implementation
+            // Find the CLI tar.gz file
+            const cliFiles = execSync(`ls -1 ${helperCliPath}/*.tar.gz 2>/dev/null || echo ""`, { encoding: 'utf-8' }).trim();
+            if (!cliFiles) {
+                core.warning(`No CLI tar.gz file found in ${helperCliPath}. Skipping vulnerability list generation.`);
+                return;
+            }
+
+            const cliFile = cliFiles.split('\n')[0]; // Get first file
+            const cliFileName = cliFile.replace('.tar.gz', '').split('/').pop();
+
+            core.info(`Found CLI file: ${cliFile}`);
+            core.info(`Extracting to: ${cliFileName}`);
+
+            // Extract the CLI
+            execSync(`cd ${helperCliPath} && tar -zxf ${cliFile.split('/').pop()}`, { encoding: 'utf-8' });
+
+            cliExecutablePath = `${helperCliPath}/${cliFileName}`;
+            core.info(`CLI executable path: ${cliExecutablePath}`);
+
+            // Build the veracode fix sca command
+            veracodeCommand = `${cliExecutablePath}/veracode fix sca "${workingDir}" -r "${workingDir}/${SCA_OUTPUT_FILE}" --list-only --json "${vulnListingFile}"`;
+
+            core.info(`Running command: ${veracodeCommand}`);
+        }
+
+        // Run the veracode fix sca command
+        try {
+            const output = execSync(veracodeCommand, {
+                encoding: 'utf-8',
+                env: {
+                    ...process.env,
+                    VERACODE_API_KEY_ID: veracodeApiKeyId,
+                    VERACODE_API_KEY_SECRET: veracodeApiKeySecret
+                }
+            });
+
+            core.info('Veracode CLI execution successful');
+            if (core.isDebug()) {
+                core.info(output);
+            }
+
+            // Check if vulnerability listing file was created
+            if (!existsSync(vulnListingFile)) {
+                core.warning(`Vulnerability listing file not created: ${vulnListingFile}`);
+                return;
+            }
+
+            // Upload the vulnerability listing JSON as artifact
+            core.info('Uploading SCA vulnerability listing JSON as artifact');
+            const { DefaultArtifactClient } = require('@actions/artifact');
+            const artifactV1 = require('@actions/artifact-v1');
+            let artifactClient;
+
+            if (options?.platformType === 'ENTERPRISE') {
+                artifactClient = artifactV1.create();
+                core.info('Initialized artifact client using version V1');
+            } else {
+                artifactClient = new DefaultArtifactClient();
+                core.info('Initialized artifact client using version V2');
+            }
+
+            const artifactName = 'sca-vuln-listing-json';
+            const files = [vulnListingFile];
+            const rootDirectory = workingDir;
+            const artifactOptions = {
+                continueOnError: true
+            };
+
+            await artifactClient.uploadArtifact(artifactName, files, rootDirectory, artifactOptions);
+            core.info('Successfully uploaded vulnerability listing JSON');
+
+            core.info('=== SCA Vulnerability List Generation Complete ===');
+
+        } catch (error: any) {
+            core.error('Failed to run Veracode CLI command');
+            core.error(error.message || error);
+            if (error.stdout) {
+                core.error(`stdout: ${error.stdout}`);
+            }
+            if (error.stderr) {
+                core.error(`stderr: ${error.stderr}`);
+            }
+            // Don't fail the entire action, just log the error
+            core.warning('Vulnerability list generation failed, but continuing action execution');
+        }
+    } catch (error: any) {
+            core.error('Error during vulnerability list generation');
+            core.error(error.message || error);
+            core.warning('Vulnerability list generation failed, but continuing action execution');
+            // Don't fail the action if vulnerability list generation fails
+    }
+}
 
 const collectors = [
     "maven",

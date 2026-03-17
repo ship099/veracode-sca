@@ -10,6 +10,7 @@ const options: Options = {
     url: 'https://www.github.com/dancancro/great-big-example-application',
     github_token: process.env.GITHUB_TOKEN || '',
     createIssues: false,
+    jsonOutput: false,
     failOnCVSS: 10,
     path: '.',
     debug:false,
@@ -20,7 +21,9 @@ const options: Options = {
     "skip-vms":false,
     "no-graphs":false,
     platformType:'CLOUD',
-    breakBuildOnPolicyFindings:'false'
+    breakBuildOnPolicyFindings:'false',
+    scaFixEnabled: false,
+    profileName: ''
 }
 
 runAction(options);

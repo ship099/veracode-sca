@@ -5,6 +5,7 @@ export interface Options {
     url: string,
     github_token: string,
     createIssues: boolean,
+    jsonOutput: boolean,
     failOnCVSS: number,
     path: string,
     debug: boolean,
@@ -15,7 +16,10 @@ export interface Options {
     "skip-collectors": Array<string>,
     "scan-collectors": Array<string>
     platformType: string,
-    breakBuildOnPolicyFindings: string
+    breakBuildOnPolicyFindings: string,
+    scaFixEnabled: boolean,
+    profileName: string,
+    prNumber?: number
 }
 
 
